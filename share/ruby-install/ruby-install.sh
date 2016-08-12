@@ -153,6 +153,10 @@ function parse_options()
 				ruby_sha512="$2"
 				shift 2
 				;;
+			--binary)
+				binary_install=1
+				shift
+				;;
 			--no-download)
 				no_download=1
 				shift
@@ -238,6 +242,68 @@ function list_rubies()
 }
 
 #
+# Initializes system info variables.
+#
+function init_system()
+{
+	system_name="unknown"
+	system_version="unknown"
+	system_arch="$(uname -m)"
+
+	case "$(uname)" in
+		(Linux|GNU*)
+			if [[ -f /etc/lsb-release ]] && grep "DISTRIB_ID=Ubuntu" /etc/lsb-release >/dev/null; then
+				system_name="ubuntu"
+				system_version="$(awk -F'=' '$1=="DISTRIB_RELEASE"{print $2}' /etc/lsb-release)"
+				system_arch="$(dpkg --print-architecture)"
+			elif [[ -f /etc/altlinux-release ]]; then
+				system_name="arch"
+				system_version="libc-$(ldd --version | awk 'NR==1 {print $NF}' | awk -F. '{print $1"."$2}')"
+			elif [[ -f /etc/os-release ]] && grep "ID=opensuse" /etc/os-release >/dev/null; then
+				system_name="opensuse"
+				system_version="$(awk -F'=' '$1=="VERSION_ID"{gsub(/"/,"");print $2}' /etc/os-release)"
+			elif [[ -f /etc/debian_version ]]; then
+				system_name="debian"
+				system_version="$(cat /etc/debian_version | awk -F. '{print $1}')"
+				system_arch="$(dpkg --print-architecture)"
+			elif [[ -f /etc/os-release ]] && grep "ID=debian" /etc/os-release >/dev/null; then
+				system_name="debian"
+				system_version="$(awk -F'=' '$1=="VERSION_ID"{gsub(/"/,"");print $2}' /etc/os-release | awk -F. '{print $1}')"
+				system_arch="$(dpkg --print-architecture)"
+			elif [[ -f /etc/system-release ]] && grep "Amazon Linux AMI" /etc/system-release >/dev/null; then
+				system_name="amazon"
+				system_version="$(grep -Eo '[0-9\.]+' /etc/system-release | awk -F. '{print $1"."$2}')"
+			elif [[ -f /etc/arch-release ]]; then
+				system_name="arch"
+				system_version="libc-$(ldd --version  | awk 'NR==1 {print $NF}' | awk -F. '{print $1"."$2}')"
+			elif [[ -f /etc/fedora-release ]]; then
+				system_name="fedora"
+				system_version="$(grep -Eo '[0-9]+' /etc/fedora-release)"
+			elif [[ -f /etc/centos-release ]]; then
+				system_name="centos"
+				system_version="$(grep -Eo '[0-9\.]+' /etc/centos-release | awk -F. '{print $1}')"
+			elif [[ -f /etc/redhat-release ]] && grep CentOS /etc/redhat-release >/dev/null; then
+				system_name="centos"
+				system_version="$(grep -Eo '[0-9\.]+' /etc/redhat-release  | awk -F. 'NR==1{print $1}')"
+			else
+				system_version="libc-$(ldd --version | awk 'NR==1 {print $NF}' | awk -F. '{print $1"."$2}')"
+			fi
+			;;
+		(Darwin)
+			system_name="osx"
+			system_version="$(sw_vers -productVersion | awk -F. '{print $1"."$2}')"
+			;;
+	esac
+
+	system_name="${system_name//[ \/]/_}"
+	system_name="$(echo ${system_name} | tr '[A-Z]' '[a-z]')"
+	system_version="${system_version//[ \/]/_}"
+	system_arch="${system_arch//[ \/]/_}"
+	system_arch="${system_arch/amd64/x86_64}"
+	system_arch="${system_arch/i[123456789]86/i386}"
+}
+
+#
 # Initializes variables.
 #
 function init()
@@ -260,4 +326,6 @@ function init()
 	ruby_sha1="${ruby_sha1:-$(ruby_checksum_for "$ruby" sha1 "$ruby_archive")}"
 	ruby_sha256="${ruby_sha256:-$(ruby_checksum_for "$ruby" sha256 "$ruby_archive")}"
 	ruby_sha512="${ruby_sha512:-$(ruby_checksum_for "$ruby" sha512 "$ruby_archive")}"
+
+	init_system
 }
